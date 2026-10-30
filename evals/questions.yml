@@ -1,0 +1,7 @@
+# TODO: add 20+ questions. Compute expected answers directly from the marts, never from the agent.
+- question: What was closing MRR in September 2026?
+  metric: closing_mrr
+  expected: null
+- question: How many enterprise accounts are active?
+  metric: active_accounts
+  expected: null

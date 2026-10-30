@@ -1,0 +1,23 @@
+# Allow-listed metrics the agent may query. Each maps to a tested dbt mart.
+metrics:
+  closing_mrr:
+    description: Total MRR at month end.
+    model: mrr_summary_monthly
+    column: closing_mrr
+    grain: month
+  net_new_mrr:
+    description: New + reactivation + expansion + contraction + churned MRR in the month.
+    model: mrr_summary_monthly
+    expression: new_mrr + reactivation_mrr + expansion_mrr + contraction_mrr + churned_mrr
+    grain: month
+  logo_churn_rate_pct:
+    description: Share of paying accounts at the start of the month that churned during it.
+    model: mrr_summary_monthly
+    column: logo_churn_rate_pct
+    grain: month
+  active_accounts:
+    description: Accounts with MRR above zero in the latest month.
+    model: dim_accounts
+    expression: count(*) filter (where is_active)
+    grain: total
+    filters: [segment, country]
