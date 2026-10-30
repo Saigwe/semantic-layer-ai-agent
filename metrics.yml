@@ -1,9 +1,20 @@
-# Allow-listed metrics the agent may query. Each maps to a tested dbt mart.
+# Allow-listed metrics the agent may query. Each maps to a tested mart in dbt-saas-metrics.
+# The agent can only choose a metric name and parameters; it never writes SQL.
 metrics:
   closing_mrr:
-    description: Total MRR at month end.
+    description: Total monthly recurring revenue (MRR) at month end, in the billing currency.
     model: mrr_summary_monthly
-    column: closing_mrr
+    expression: closing_mrr
+    grain: month
+  new_mrr:
+    description: MRR from accounts paying for the first time in the month.
+    model: mrr_summary_monthly
+    expression: new_mrr
+    grain: month
+  churned_mrr:
+    description: MRR lost from accounts that stopped paying in the month (negative number).
+    model: mrr_summary_monthly
+    expression: churned_mrr
     grain: month
   net_new_mrr:
     description: New + reactivation + expansion + contraction + churned MRR in the month.
@@ -11,13 +22,24 @@ metrics:
     expression: new_mrr + reactivation_mrr + expansion_mrr + contraction_mrr + churned_mrr
     grain: month
   logo_churn_rate_pct:
-    description: Share of paying accounts at the start of the month that churned during it.
+    description: Percentage of accounts paying at the start of the month that churned during it.
     model: mrr_summary_monthly
-    column: logo_churn_rate_pct
+    expression: logo_churn_rate_pct
+    grain: month
+  paying_accounts:
+    description: Number of accounts with MRR above zero at month end.
+    model: mrr_summary_monthly
+    expression: paying_accounts
     grain: month
   active_accounts:
-    description: Accounts with MRR above zero in the latest month.
+    description: Accounts currently paying (latest month), optionally filtered by segment or country.
     model: dim_accounts
     expression: count(*) filter (where is_active)
+    grain: total
+    filters: [segment, country]
+  current_mrr_by_account_total:
+    description: Sum of current MRR across accounts, optionally filtered by segment or country.
+    model: dim_accounts
+    expression: sum(current_mrr)
     grain: total
     filters: [segment, country]

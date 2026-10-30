@@ -1,41 +1,58 @@
-# Semantic-Layer AI Agent (scaffold)
+# Semantic-Layer AI Agent
 
-> **Status: scaffold.** Structure and interfaces are in place; the steps in the checklist below are still to do.
+[![ci](https://github.com/Saigwe/semantic-layer-ai-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Saigwe/semantic-layer-ai-agent/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue) ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-**Gap it closes:** building AI agents over trusted, governed data, and AI evaluation. Asked for by Xelix,
-1Password, Meta, PlayStation, Zendesk and Ashby.
-
-## Goal
-
-Let business users ask plain-English questions ("What was net new MRR in Q2?", "Which segment churns
-most?") and get answers computed from the governed metrics in
-[dbt-saas-metrics](https://github.com/Saigwe/dbt-saas-metrics), not from free-form SQL written by the model.
-
-The agent can only call a small set of tools over an allow-listed metric catalogue (`metrics.yml`), so
-every number traces back to a tested dbt model. An evaluation set measures accuracy.
+A Claude agent that answers business questions ("What was net new MRR in June?", "How many enterprise accounts are active?") **only through governed metrics** defined on top of the tested dbt marts in [dbt-saas-metrics](https://github.com/Saigwe/dbt-saas-metrics). It never writes SQL itself.
 
 ```mermaid
 flowchart LR
-    U[Question] --> A[Claude agent]
-    A -->|tool: list_metrics| M[metrics.yml catalogue]
-    A -->|tool: query_metric(name, filters, grain)| Q[safe SQL builder]
+    U[Question] --> A[Claude agent loop]
+    A -->|list_metrics| M[metrics.yml catalogue]
+    A -->|"query_metric(metric, months, filters)"| Q[parameterised SQL builder]
     Q --> D[(dbt-saas-metrics DuckDB)]
-    D --> A --> R[Answer + metric definition + SQL used]
-    E[evals/questions.yml] --> X[eval runner: accuracy %]
+    D --> A --> R[Answer + metric definition + audit of SQL run]
+    E[evals/questions.yml] --> X[eval runner: accuracy vs expected values from the marts]
 ```
 
-## Checklist
+## Why restrict the agent to a catalogue?
 
-- [ ] Build the dbt project and point `AGENT_DB_PATH` at its `target/saas.duckdb`
-- [ ] `agent/catalogue.py`: load `metrics.yml`, validate metric names, grains and allowed filters
-- [ ] `agent/query.py`: build parameterised SQL only from catalogue entries (no model-written SQL)
-- [ ] `agent/agent.py`: Claude tool-use loop (`claude-opus-5-5`) with the two tools; return answer, metric definition and SQL
-- [ ] `evals/questions.yml`: 20+ questions with expected answers computed directly from the marts
-- [ ] `evals/run_evals.py`: score exact-match accuracy and refusal on out-of-scope questions
-- [ ] Tests for the catalogue and SQL builder (no API calls)
-- [ ] README: eval results, failure analysis and design trade-offs
+Letting a model write free-form SQL against raw tables gives fluent answers that nobody can verify, and definitions drift from finance's numbers. Here:
 
-## Why tool-restricted
+- **The catalogue is the semantic layer.** [`metrics.yml`](metrics.yml) defines 8 metrics, each mapped to a tested mart, with a definition, grain and allowed filters.
+- **The model chooses, the code builds.** Claude picks a metric name and parameters. Table names and expressions come from the catalogue, and every value is a bound parameter, so SQL injection isn't possible (there's a test for it).
+- **Strict tool schemas** (`strict: true`, `additionalProperties: false`) keep tool inputs valid. Bad inputs come back to Claude as `is_error` tool results it can correct, instead of crashing.
+- **Every answer is auditable.** The agent returns the SQL and parameters it ran alongside the answer.
+- **Out-of-scope questions** ("customer acquisition cost?") get a fixed refusal phrase plus the list of available metrics, rather than a guess.
 
-Letting a model write SQL against raw tables gives fluent but unverifiable answers. Restricting it to
-catalogue metrics keeps definitions consistent with finance's MRR bridge and makes answers auditable.
+## Evaluation
+
+[`evals/questions.yml`](evals/questions.yml) has 12 questions: 10 answerable (single months, ranges, filters, and a quarter total that needs summing) and 2 out-of-scope. Expected values are computed **directly from the marts with SQL**, never from the agent. The runner checks that the expected figure appears in the answer, or that the refusal phrase does.
+
+```bash
+python -m evals.run_evals            # one agent run per question (uses API credits)
+```
+
+Results are written to `output/eval_results.json`.
+
+> **Status:** the tools, SQL builder, agent loop (with a fake client) and eval grading are all tested. The live agent and eval run need Anthropic API credentials and haven't been run yet, so add your accuracy figure here after the first run.
+
+## Run it
+
+```bash
+pip install -r requirements.txt
+# build the dbt project first (dbt-saas-metrics: dbt build), or set AGENT_DB_PATH to its target/saas.duckdb
+export ANTHROPIC_API_KEY=...          # or `ant auth login`
+python -m agent.agent "What was net new MRR in June 2026?"
+pytest
+```
+
+## Implementation notes
+
+- **Model:** `claude-opus-5-5` at `medium` effort, with server-side refusal fallback enabled.
+- **Explicit tool-use loop** instead of the SDK's beta tool runner, so every query lands in the audit trail and the loop can be unit-tested. The full assistant content is appended each turn, so thinking and tool blocks stay valid.
+- **Tool results:** all results for a turn go back in one user message, and the loop is capped at 8 turns.
+
+## Stack
+
+Python, Anthropic SDK (tool use), DuckDB, dbt marts, YAML catalogue, pytest.

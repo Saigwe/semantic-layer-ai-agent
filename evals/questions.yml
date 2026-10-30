@@ -1,7 +1,31 @@
-# TODO: add 20+ questions. Compute expected answers directly from the marts, never from the agent.
+# Each expected answer is computed directly from the dbt marts with expected_sql, never from the agent.
+# The eval passes when the agent's answer contains the expected number (within tolerance), or the
+# out-of-scope phrase when answerable is false.
 - question: What was closing MRR in September 2026?
-  metric: closing_mrr
-  expected: null
-- question: How many enterprise accounts are active?
-  metric: active_accounts
-  expected: null
+  expected_sql: select closing_mrr from mrr_summary_monthly where month = date '2026-09-01'
+- question: How much MRR did we lose to churn in April 2026?
+  expected_sql: select churned_mrr from mrr_summary_monthly where month = date '2026-04-01'
+- question: What was net new MRR in June 2026?
+  expected_sql: >
+    select new_mrr + reactivation_mrr + expansion_mrr + contraction_mrr + churned_mrr
+    from mrr_summary_monthly where month = date '2026-06-01'
+- question: What was the logo churn rate in September 2026?
+  expected_sql: select logo_churn_rate_pct from mrr_summary_monthly where month = date '2026-09-01'
+- question: How many accounts were paying at the end of August 2026?
+  expected_sql: select paying_accounts from mrr_summary_monthly where month = date '2026-08-01'
+- question: How many enterprise accounts are currently active?
+  expected_sql: select count(*) filter (where is_active) from dim_accounts where segment = 'enterprise'
+- question: How many active customers do we have in Portugal?
+  expected_sql: select count(*) filter (where is_active) from dim_accounts where country = 'PT'
+- question: What is the total current MRR from UK accounts?
+  expected_sql: select sum(current_mrr) from dim_accounts where country = 'UK'
+- question: How much new MRR did we add in May 2026?
+  expected_sql: select new_mrr from mrr_summary_monthly where month = date '2026-05-01'
+- question: What was total new MRR across the second quarter of 2026 (April to June)?
+  expected_sql: >
+    select sum(new_mrr) from mrr_summary_monthly
+    where month between date '2026-04-01' and date '2026-06-01'
+- question: Which product line generates the most revenue?
+  answerable: false
+- question: What is our customer acquisition cost?
+  answerable: false
