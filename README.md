@@ -53,6 +53,10 @@ pytest
 - **Explicit tool-use loop** instead of the SDK's beta tool runner, so every query lands in the audit trail and the loop can be unit-tested. The full assistant content is appended each turn, so thinking and tool blocks stay valid.
 - **Tool results:** all results for a turn go back in one user message, and the loop is capped at 8 turns.
 
+## Walkthrough
+
+- [ ] 3-minute Loom walkthrough ([script ready](docs/walkthrough.md))
+
 ## Stack
 
 Python, Anthropic SDK (tool use), DuckDB, dbt marts, YAML catalogue, pytest.
